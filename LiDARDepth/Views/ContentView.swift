@@ -1,10 +1,3 @@
-/*
-See LICENSE folder for this sample’s licensing information.
-
-Abstract:
-The app's main user interface.
-*/
-
 import SwiftUI
 import MetalKit
 import Metal
@@ -24,9 +17,9 @@ struct ContentView: View {
         VStack {
             HStack {
                 Button {
-                    manager.processingCapturedResult ? manager.resumeStream() : manager.startPhotoCapture()
+                    manager.isRecording ? manager.outputVideoRecording() : manager.startRecording()
                 } label: {
-                    Image(systemName: manager.processingCapturedResult ? "play.circle" : "camera.circle")
+                    Image(systemName: manager.isRecording ? "stop.circle" : "play.circle")
                         .font(.largeTitle)
                 }
                 
@@ -58,16 +51,16 @@ struct ContentView: View {
                             )
                             .aspectRatio(calcAspect(orientation: viewOrientation, texture: manager.capturedData.depth), contentMode: .fit)
                         }
-                        ZoomOnTap {
-                            MetalPointCloudView(
-                                rotationAngle: rotationAngle,
-                                maxDepth: $maxDepth,
-                                minDepth: $minDepth,
-                                scaleMovement: $scaleMovement,
-                                capturedData: manager.capturedData
-                            )
-                            .aspectRatio(calcAspect(orientation: viewOrientation, texture: manager.capturedData.depth), contentMode: .fit)
-                        }
+//                        ZoomOnTap {
+//                            MetalPointCloudView(
+//                                rotationAngle: rotationAngle,
+//                                maxDepth: $maxDepth,
+//                                minDepth: $minDepth,
+//                                scaleMovement: $scaleMovement,
+//                                capturedData: manager.capturedData
+//                            )
+//                            .aspectRatio(calcAspect(orientation: viewOrientation, texture: manager.capturedData.depth), contentMode: .fit)
+//                        }
                         ZoomOnTap {
                             DepthOverlay(manager: manager,
                                          maxDepth: $maxDepth,

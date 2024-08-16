@@ -20,10 +20,13 @@ class CameraManager: ObservableObject, CaptureDataReceiver {
         }
     }
     @Published var orientation = UIDevice.current.orientation
-    @Published var waitingForCapture = false
     @Published var processingCapturedResult = false
     @Published var dataAvailable = false
-    
+    @Published var isRecording: Bool {
+        didSet {
+            controller.isRecording = isRecording
+        }
+    }
     let controller: CameraController
     var cancellables = Set<AnyCancellable>()
     var session: AVCaptureSession { controller.captureSession }
@@ -33,6 +36,7 @@ class CameraManager: ObservableObject, CaptureDataReceiver {
         capturedData = CameraCapturedData()
         controller = CameraController()
         controller.isFilteringEnabled = true
+        isRecording = false
         controller.startStream()
         isFilteringDepth = controller.isFilteringEnabled
         
@@ -42,27 +46,16 @@ class CameraManager: ObservableObject, CaptureDataReceiver {
         controller.delegate = self
     }
     
-    func startPhotoCapture() {
-        controller.capturePhoto()
-        waitingForCapture = true
+    func outputVideoRecording() {
+    isRecording = false
+
     }
     
-    func resumeStream() {
-        controller.startStream()
-        processingCapturedResult = false
-        waitingForCapture = false
+    
+    func startRecording() {
+        isRecording = true
     }
     
-    func onNewPhotoData(capturedData: CameraCapturedData) {
-        // Because the views hold a reference to `capturedData`, the app updates each texture separately.
-        self.capturedData.depth = capturedData.depth
-        self.capturedData.colorY = capturedData.colorY
-        self.capturedData.colorCbCr = capturedData.colorCbCr
-        self.capturedData.cameraIntrinsics = capturedData.cameraIntrinsics
-        self.capturedData.cameraReferenceDimensions = capturedData.cameraReferenceDimensions
-        waitingForCapture = false
-        processingCapturedResult = true
-    }
     
     func onNewData(capturedData: CameraCapturedData) {
         DispatchQueue.main.async {
