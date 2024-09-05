@@ -1,44 +1,62 @@
 import UIKit
 import AVFoundation
 import CoreImage
+import Photos
 
+// Protocol to notify when new camera data is captured.
 protocol CaptureDataReceiver: AnyObject {
     func onNewData(capturedData: CameraCapturedData)
 }
 
-class CameraController: NSObject, ObservableObject {
+class CameraController: NSObject, ObservableObject, AVPlayerItemMetadataOutputPushDelegate {
     
+    // Custom error types for configuration failures.
     enum ConfigurationError: Error {
         case lidarDeviceUnavailable
         case requiredFormatUnavailable
     }
     
+    // Desired video resolution for capture.
     private let preferredWidthResolution = 1920
+    private let preferredHeightResolution = 1440
+    
+    // Queue to handle video processing with high priority.
     private let videoQueue = DispatchQueue(label: "com.example.apple-samplecode.VideoQueue", qos: .userInteractive)
     
+    // Capture session object to manage input/output.
     private(set) var captureSession: AVCaptureSession!
     
+    // Outputs for depth data and video data.
     private var depthDataOutput: AVCaptureDepthDataOutput!
     private var videoDataOutput: AVCaptureVideoDataOutput!
+    
+    // Synchronizer to align depth and video outputs.
     private var outputVideoSync: AVCaptureDataOutputSynchronizer!
     
+    // Metal texture cache for managing video frames.
     private var textureCache: CVMetalTextureCache!
     
+    // AVAssetWriter components for video recording.
     private var assetWriter: AVAssetWriter?
     private var assetWriterInput: AVAssetWriterInput?
     private var assetWriterPixelBufferInput: AVAssetWriterInputPixelBufferAdaptor?
     private var assetWriterMetadataInput: AVAssetWriterInput?
-    private var assetWriterMetadataAdaptor: AVAssetWriterInputMetadataAdaptor?
+    private var metadataAdapter: AVAssetWriterInputMetadataAdaptor?
+    
+    // Timestamp to manage frame timing during video recording.
     private var lastTimestamp: CMTime = .zero
-
+    
+    // Delegate to notify when new captured data is available.
     weak var delegate: CaptureDataReceiver?
     
+    // Property to enable or disable depth filtering.
     var isFilteringEnabled = true {
         didSet {
             depthDataOutput.isFilteringEnabled = isFilteringEnabled
         }
     }
     
+    // Property to control video recording state.
     var isRecording = false {
         didSet {
             if isRecording {
@@ -52,13 +70,14 @@ class CameraController: NSObject, ObservableObject {
     override init() {
         super.init()
         
-        // Create a texture cache to hold sample buffer textures.
+        // Create a Metal texture cache for video processing.
         CVMetalTextureCacheCreate(kCFAllocatorDefault,
                                   nil,
                                   MetalEnvironment.shared.metalDevice,
                                   nil,
                                   &textureCache)
         
+        // Set up the camera session, catching errors if setup fails.
         do {
             try setupSession()
         } catch {
@@ -66,27 +85,29 @@ class CameraController: NSObject, ObservableObject {
         }
     }
     
+    // Set up the capture session with camera inputs and outputs.
     private func setupSession() throws {
         captureSession = AVCaptureSession()
         captureSession.sessionPreset = .inputPriority
-
-        // Configure the capture session.
+        
+        // Begin configuration before adding inputs/outputs.
         captureSession.beginConfiguration()
         
-        try setupCaptureInput()
-        setupCaptureOutputs()
+        try setupCaptureInput()  // Configure the camera input.
+        setupCaptureOutputs()    // Configure video and depth outputs.
         
-        // Finalize the capture session configuration.
+        // Finalize and commit the session configuration.
         captureSession.commitConfiguration()
     }
     
+    // Set up the camera input (LiDAR) for depth data and video.
     private func setupCaptureInput() throws {
-        // Look up the LiDAR camera.
+        // Ensure the LiDAR camera is available.
         guard let device = AVCaptureDevice.default(.builtInLiDARDepthCamera, for: .video, position: .back) else {
             throw ConfigurationError.lidarDeviceUnavailable
         }
         
-        // Find a match that outputs video data in the format the app's custom Metal views require.
+        // Find a suitable format for video that meets the required resolution.
         guard let format = (device.formats.last { format in
             format.formatDescription.dimensions.width == preferredWidthResolution &&
             format.formatDescription.mediaSubType.rawValue == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange &&
@@ -96,76 +117,75 @@ class CameraController: NSObject, ObservableObject {
             throw ConfigurationError.requiredFormatUnavailable
         }
         
-        // Find a match that outputs depth data in the format the app's custom Metal views require.
+        // Find a suitable depth data format.
         guard let depthFormat = (format.supportedDepthDataFormats.last { depthFormat in
             depthFormat.formatDescription.mediaSubType.rawValue == kCVPixelFormatType_DepthFloat16
         }) else {
             throw ConfigurationError.requiredFormatUnavailable
         }
         
-        // Begin the device configuration.
+        // Lock the device for configuration and set the formats.
         try device.lockForConfiguration()
-
-        // Configure the device and depth formats.
         device.activeFormat = format
         device.activeDepthDataFormat = depthFormat
-
-        // Finish the device configuration.
         device.unlockForConfiguration()
         
-        print("Selected video format: \(device.activeFormat)")
-        print("Selected depth format: \(String(describing: device.activeDepthDataFormat))")
-        
-        // Add a device input to the capture session.
+        // Add the camera input to the capture session.
         let deviceInput = try AVCaptureDeviceInput(device: device)
         captureSession.addInput(deviceInput)
     }
     
+    // Set up the outputs for video and depth data.
     private func setupCaptureOutputs() {
-        // Create an object to output video sample buffers.
+        // Configure the video data output for the session.
         videoDataOutput = AVCaptureVideoDataOutput()
         captureSession.addOutput(videoDataOutput)
         
-        // Create an object to output depth data.
+        // Configure the depth data output for the session.
         depthDataOutput = AVCaptureDepthDataOutput()
         depthDataOutput.isFilteringEnabled = isFilteringEnabled
         captureSession.addOutput(depthDataOutput)
-
-        // Create an object to synchronize the delivery of depth and video data.
+        
+        // Synchronize depth and video outputs.
         outputVideoSync = AVCaptureDataOutputSynchronizer(dataOutputs: [depthDataOutput, videoDataOutput])
         outputVideoSync.setDelegate(self, queue: videoQueue)
-
-        // Enable camera intrinsics matrix delivery.
+        
+        // Enable the camera's intrinsic matrix delivery for advanced processing.
         guard let outputConnection = videoDataOutput.connection(with: .video) else { return }
         if outputConnection.isCameraIntrinsicMatrixDeliverySupported {
             outputConnection.isCameraIntrinsicMatrixDeliveryEnabled = true
         }
     }
     
+    // Start the camera stream.
     func startStream() {
         DispatchQueue.global(qos: .background).async {
             self.captureSession.startRunning()
         }
     }
     
+    // Stop the camera stream.
     func stopStream() {
         captureSession.stopRunning()
     }
-   
+    
+    // Start recording video, setting up the asset writer.
     private func startRecording() {
         let fileName = "\(UUID().uuidString).mov"
         let outputURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         
         do {
+            // Set up the asset writer for video recording.
             assetWriter = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
             
-            // Set up video settings
+            // Configure video settings.
             let videoSettings: [String: Any] = [
                 AVVideoCodecKey: AVVideoCodecType.h264,
                 AVVideoWidthKey: preferredWidthResolution,
-                AVVideoHeightKey: preferredWidthResolution
+                AVVideoHeightKey: preferredHeightResolution
             ]
             
+            // Add inputs for video frames and metadata.
             assetWriterInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
             assetWriterInput?.expectsMediaDataInRealTime = true
             
@@ -175,100 +195,155 @@ class CameraController: NSObject, ObservableObject {
                     kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
                 ]
             )
-           
             
-            let metadataItem = AVMutableMetadataItem()
-            metadataItem.identifier = AVMetadataIdentifier("common/fishtechy_lidar")
-            metadataItem.dataType = kCMMetadataBaseDataType_UTF8 as String?
-
-            let metadata = [metadataItem]
-            let metadataGroup = AVTimedMetadataGroup(items: metadata, timeRange: CMTimeRange(start: .zero, end: CMTime.positiveInfinity))
-            let formatDesc = metadataGroup.copyFormatDescription()
-            let metadataInput = AVAssetWriterInput(mediaType: .metadata, outputSettings: nil, sourceFormatHint: formatDesc)
-            metadataInput.expectsMediaDataInRealTime = false
-            assetWriterMetadataAdaptor = AVAssetWriterInputMetadataAdaptor(assetWriterInput: metadataInput)
-
-            // Add inputs to asset writer
+            let metaSpec: [String: Any] = [
+                kCMMetadataFormatDescriptionMetadataSpecificationKey_Identifier as String: "mdta/io.futrix.flytechy.3D",
+                kCMMetadataFormatDescriptionMetadataSpecificationKey_DataType as String: "com.apple.metadata.datatype.UTF-8",
+            ]
+            
+            var metadataFormatDescription: CMFormatDescription?
+            let metadataSpecifications = [metaSpec] as CFArray
+            
+            // Create metadata format description.
+            CMMetadataFormatDescriptionCreateWithMetadataSpecifications(
+                allocator: kCFAllocatorDefault,
+                metadataType: kCMMetadataFormatType_Boxed,
+                metadataSpecifications: metadataSpecifications,
+                formatDescriptionOut: &metadataFormatDescription
+            )
+            
+            let metadataInput = AVAssetWriterInput(mediaType: .metadata, outputSettings: nil, sourceFormatHint: metadataFormatDescription)
+            metadataInput.expectsMediaDataInRealTime = true
+            
+            metadataAdapter = AVAssetWriterInputMetadataAdaptor(assetWriterInput: metadataInput)
+            
+            // Start writing session for video and metadata.
             if let assetWriter = assetWriter,
-               let assetWriterInput = assetWriterInput,
-               let _ = assetWriterPixelBufferInput , let assetWriterMetadataAdaptor = assetWriterMetadataAdaptor{
+               let assetWriterInput = assetWriterInput
+            {
                 assetWriter.add(assetWriterInput)
                 assetWriter.add(metadataInput)
                 assetWriter.startWriting()
                 assetWriter.startSession(atSourceTime: .zero)
             }
-            
-            // Reset the last timestamp to zero for a new recording
-            lastTimestamp = .zero
         } catch {
             print("Error starting video recording: \(error)")
         }
     }
-
-
+    
+    // Append video frames and depth data during recording.
     private func appendPixelBufferAndDepth(pixelBuffer: CVPixelBuffer, depthData: AVDepthData, timestamp: CMTime) {
         guard let assetWriterPixelBufferInput = assetWriterPixelBufferInput else { return }
         
-        // Increment timestamp by the duration of a frame (e.g., 1/30 second)
+        // Set frame duration for 30fps video.
         let frameDuration = CMTime(seconds: 1.0 / 30.0, preferredTimescale: 600)
         lastTimestamp = CMTimeAdd(lastTimestamp, frameDuration)
         
+        // Append pixel buffer if the writer is ready.
         if assetWriterPixelBufferInput.assetWriterInput.isReadyForMoreMediaData {
             assetWriterPixelBufferInput.append(pixelBuffer, withPresentationTime: lastTimestamp)
-            
-            // Append metadata
-            appendMetadataForFrame(depthData: depthData, timestamp: lastTimestamp)
         }
+        
+        // Write depth data and camera intrinsic/extrinsic information.
+        writeDepthAndCameraData(depthData: depthData, frameDuration: frameDuration)
     }
-
-    private func appendMetadataForFrame(depthData: AVDepthData, timestamp: CMTime) {
-        guard let assetWriterMetadataAdaptor = assetWriterMetadataAdaptor else {
+    
+    // Write depth data and camera information as metadata.
+    private func writeDepthAndCameraData(depthData: AVDepthData, frameDuration: CMTime) {
+        // Flatten the depth array
+        let depthValues = flattenDepthArray(depthData: depthData)
+        
+        // Extract camera intrinsic matrix and view transform
+        guard let cameraCalibrationData = depthData.cameraCalibrationData else {
+            print("No camera calibration data available")
             return
         }
+        
+        // Camera intrinsic matrix (3x3 matrix in double format)
+        let cameraIntrinsic = cameraCalibrationData.intrinsicMatrix
+
+        // Convert the camera intrinsic matrix to an array
+        let cameraIntrinsicArray = [
+            cameraIntrinsic.columns.0.x, cameraIntrinsic.columns.0.y, cameraIntrinsic.columns.0.z,
+            cameraIntrinsic.columns.1.x, cameraIntrinsic.columns.1.y, cameraIntrinsic.columns.1.z,
+            cameraIntrinsic.columns.2.x, cameraIntrinsic.columns.2.y, cameraIntrinsic.columns.2.z
+        ]
+        
+        // View transform (rotation and translation matrix - 4x3 matrix)
+        let viewTransform = cameraCalibrationData.extrinsicMatrix
+        let viewTransformArray = [
+            viewTransform.columns.0.x, viewTransform.columns.0.y, viewTransform.columns.0.z,
+            viewTransform.columns.1.x, viewTransform.columns.1.y, viewTransform.columns.1.z,
+            viewTransform.columns.2.x, viewTransform.columns.2.y, viewTransform.columns.2.z,
+            viewTransform.columns.3.x, viewTransform.columns.3.y, viewTransform.columns.3.z
+        ]
+        
+        // Create a dictionary for JSON
+        let depthDataDict: [String: Any] = [
+            "depth": depthValues,
+            "cameraIntrinsic": cameraIntrinsicArray,
+            "viewTransform": viewTransformArray
+        ]
+        
+        // Convert the dictionary to JSON data
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: depthDataDict, options: .prettyPrinted),
+              let encodedDepthValues = String(data: jsonData, encoding: .utf8),
+              let metadataAdapter = metadataAdapter else {
+            return
+        }
+        
+        // Create metadata item
         let metadataItem = AVMutableMetadataItem()
-        metadataItem.key = "fishtechy_lidar" as NSString // Custom metadata key
-        metadataItem.keySpace = AVMetadataKeySpace.common
-        metadataItem.value = depthDataToString(depthData) as NSString // Convert depth data to string
-        metadataItem.time = timestamp
-        metadataItem.dataType = kCMMetadataBaseDataType_UTF8 as String?
-
-        let metadata = [metadataItem]
-        let metadataGroup = AVTimedMetadataGroup(items: metadata, timeRange: CMTimeRange(start: timestamp, duration: CMTime.zero))
-        assetWriterMetadataAdaptor.append(metadataGroup)
-    }
-
-
-
-    private func finishRecording() {
-        assetWriter?.finishWriting { [weak self] in
-            guard let self = self else { return }
-            
-            if let videoURL = self.assetWriter?.outputURL {
-                DispatchQueue.main.async {
-                    // Ensure the video file is valid before saving
-                    print("Saving video to gallery at path: \(videoURL.path)")
-                    UISaveVideoAtPathToSavedPhotosAlbum(videoURL.path, self, #selector(self.video(_:didFinishSavingWithError:contextInfo:)), nil)
-                }
-            }
+        metadataItem.key = "io.futrix.flytechy.3D" as (NSCopying & NSObjectProtocol)?
+        metadataItem.keySpace = AVMetadataKeySpace(rawValue: "mdta")
+        metadataItem.value = encodedDepthValues as (NSCopying & NSObjectProtocol)?
+        
+        // Create a metadata timed group and append it
+        let timedMetadataGroup = AVTimedMetadataGroup(items: [metadataItem], timeRange: CMTimeRangeMake(start: lastTimestamp, duration: frameDuration))
+        
+        if metadataAdapter.assetWriterInput.isReadyForMoreMediaData {
+            metadataAdapter.append(timedMetadataGroup)
         }
     }
 
-    @objc private func video(_ videoPath: String, didFinishSavingWithError error: Error?, contextInfo: UnsafeMutableRawPointer) {
-        if let error = error {
-            print("Error saving video: \(error.localizedDescription)")
-        } else {
-            print("Video saved successfully to gallery.")
+    
+    // Flatten depth data into a 2D array for metadata storage.
+    private func flattenDepthArray(depthData: AVDepthData) -> [String] {
+        let depthMap = depthData.depthDataMap
+        let width = CVPixelBufferGetWidth(depthMap)
+        let height = CVPixelBufferGetHeight(depthMap)
+        let rowData = CVPixelBufferGetBaseAddress(depthMap)!.assumingMemoryBound(to: Float32.self)
+        
+        // Convert depth data to a 2D array for metadata storage.
+        var flatData: [String] = []
+        for y in 0..<height {
+            for x in 0..<width {
+                let value = rowData[y * width + x]
+                flatData.append("\(value)")
+            }
+        }
+        
+        return flatData
+    }
+    
+    // Finalize and complete the video recording.
+    private func finishRecording() {
+        assetWriterInput?.markAsFinished()
+        assetWriter?.finishWriting {
+            self.resetRecordingState()
         }
     }
     
-    private func depthDataToString(_ depthData: AVDepthData) -> String {
-        // Convert depth data to a string or data for metadata.
-        // Implement this based on your specific needs.
-        return "Depth data as string or other format"
+    // Reset recording state and inputs after a session.
+    private func resetRecordingState() {
+        assetWriter = nil
+        assetWriterInput = nil
+        assetWriterPixelBufferInput = nil
+        assetWriterMetadataInput = nil
     }
 }
 
-// MARK: Output Synchronizer Delegate
+// AVCaptureDataOutputSynchronizerDelegate method to handle synchronized video and depth data.
 extension CameraController: AVCaptureDataOutputSynchronizerDelegate {
     
     func dataOutputSynchronizer(_ synchronizer: AVCaptureDataOutputSynchronizer,

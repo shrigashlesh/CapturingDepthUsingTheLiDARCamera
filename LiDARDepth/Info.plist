@@ -4,7 +4,7 @@
 <dict>
 	<key>CFBundleSignature</key>
 	<string>????</string>
-	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<false/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to pick video.</string>
 </dict>
 </plist>

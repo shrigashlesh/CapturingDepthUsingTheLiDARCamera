@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		8841129C2C6F0D74007DEC11 /* UIImage+PixelBuffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8841129B2C6F0D74007DEC11 /* UIImage+PixelBuffer.swift */; };
-		884112A02C6F0EBB007DEC11 /* CVpixelBuffer2UIImage16bit.m in Sources */ = {isa = PBXBuildFile; fileRef = 8841129F2C6F0EBB007DEC11 /* CVpixelBuffer2UIImage16bit.m */; };
+		88AC97582C895C8A0056E9F9 /* CVpixelBuffer2UIImage16bit.m in Sources */ = {isa = PBXBuildFile; fileRef = 88AC97572C895C8A0056E9F9 /* CVpixelBuffer2UIImage16bit.m */; };
 		AE2C81C1273818FF001BDCC7 /* MetalTextureColorZap.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2C81C0273818FF001BDCC7 /* MetalTextureColorZap.swift */; };
 		AE2C81C3273961FF001BDCC7 /* MetalTextureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE921D37270D7B41000E95C6 /* MetalTextureView.swift */; };
 		AE2C81C427396203001BDCC7 /* MetalTextureColorThresholdDepth.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2DD57D2732870500FAB8A5 /* MetalTextureColorThresholdDepth.swift */; };
@@ -33,9 +33,9 @@
 /* Begin PBXFileReference section */
 		0C34ECABC9005D93C0DF4297 /* LICENSE.txt */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text; path = LICENSE.txt; sourceTree = "<group>"; };
 		8841129B2C6F0D74007DEC11 /* UIImage+PixelBuffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIImage+PixelBuffer.swift"; sourceTree = "<group>"; };
-		8841129D2C6F0EBB007DEC11 /* LiDARDepth-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "LiDARDepth-Bridging-Header.h"; sourceTree = "<group>"; };
-		8841129E2C6F0EBB007DEC11 /* CVpixelBuffer2UIImage16bit.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CVpixelBuffer2UIImage16bit.h; sourceTree = "<group>"; };
-		8841129F2C6F0EBB007DEC11 /* CVpixelBuffer2UIImage16bit.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CVpixelBuffer2UIImage16bit.m; sourceTree = "<group>"; };
+		88AC97562C895C8A0056E9F9 /* CVpixelBuffer2UIImage16bit.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CVpixelBuffer2UIImage16bit.h; sourceTree = "<group>"; };
+		88AC97572C895C8A0056E9F9 /* CVpixelBuffer2UIImage16bit.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CVpixelBuffer2UIImage16bit.m; sourceTree = "<group>"; };
+		88AC97592C895CB20056E9F9 /* LiDARDepth-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "LiDARDepth-Bridging-Header.h"; sourceTree = "<group>"; };
 		9ED80CBFEB14F0F0F5121BC6 /* SampleCode.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = SampleCode.xcconfig; path = Configuration/SampleCode.xcconfig; sourceTree = "<group>"; };
 		AE18F046274A126C008BC9E3 /* AVFCapture.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = AVFCapture.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AE18F048274A1272008BC9E3 /* CMCapture.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = CMCapture.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -98,8 +98,9 @@
 		AE921D28270D7B02000E95C6 /* LiDARDepth */ = {
 			isa = PBXGroup;
 			children = (
-				8841129E2C6F0EBB007DEC11 /* CVpixelBuffer2UIImage16bit.h */,
-				8841129F2C6F0EBB007DEC11 /* CVpixelBuffer2UIImage16bit.m */,
+				88AC97592C895CB20056E9F9 /* LiDARDepth-Bridging-Header.h */,
+				88AC97562C895C8A0056E9F9 /* CVpixelBuffer2UIImage16bit.h */,
+				88AC97572C895C8A0056E9F9 /* CVpixelBuffer2UIImage16bit.m */,
 				AE9AD78C270ECD01001218B2 /* CameraController.swift */,
 				C444DFC327C43447000D8883 /* Model */,
 				AEC8871B272EB01200ED6FCC /* Views */,
@@ -108,7 +109,6 @@
 				AE7889AD271DB86E00B0383F /* Info.plist */,
 				AE921D2F270D7B04000E95C6 /* Preview Content */,
 				8841129B2C6F0D74007DEC11 /* UIImage+PixelBuffer.swift */,
-				8841129D2C6F0EBB007DEC11 /* LiDARDepth-Bridging-Header.h */,
 			);
 			path = LiDARDepth;
 			sourceTree = "<group>";
@@ -281,7 +281,7 @@
 				AE921D2C270D7B02000E95C6 /* ContentView.swift in Sources */,
 				AED300A5271D6D18008F6007 /* CameraManager.swift in Sources */,
 				AE2C81C3273961FF001BDCC7 /* MetalTextureView.swift in Sources */,
-				884112A02C6F0EBB007DEC11 /* CVpixelBuffer2UIImage16bit.m in Sources */,
+				88AC97582C895C8A0056E9F9 /* CVpixelBuffer2UIImage16bit.m in Sources */,
 				AE921D2A270D7B02000E95C6 /* LiDARDepthApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
