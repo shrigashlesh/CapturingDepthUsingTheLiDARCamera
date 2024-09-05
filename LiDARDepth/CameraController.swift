@@ -345,13 +345,6 @@ class CameraController: NSObject, ObservableObject, AVPlayerItemMetadataOutputPu
         return depthValues
     }
     
-    // Finalize and complete the video recording.
-    private func finishRecording() {
-        assetWriterInput?.markAsFinished()
-        assetWriter?.finishWriting {
-            self.resetRecordingState()
-        }
-    }
     
     // Reset recording state and inputs after a session.
     private func resetRecordingState() {
@@ -360,6 +353,51 @@ class CameraController: NSObject, ObservableObject, AVPlayerItemMetadataOutputPu
         assetWriterPixelBufferInput = nil
         assetWriterMetadataInput = nil
     }
+    
+    // Finalize and complete the video recording.
+    private func finishRecording() {
+           
+           if assetWriter?.status == .writing {
+               assetWriter?.finishWriting { [weak self] in
+                   guard let self = self else { return }
+                   
+                   if let videoURL = self.assetWriter?.outputURL {
+                       DispatchQueue.main.async { [self] in
+                           print("Saving video to gallery at path: \(videoURL.path)")
+                           self.saveVideoWithMetadata(videoURL: videoURL)
+                       }
+                       self.resetRecordingState()
+                   }
+               }
+           } else {
+               print("Asset Writer not in a writable state: \(String(describing: assetWriter?.status))")
+           }
+           
+       }
+       
+       func saveVideoWithMetadata(videoURL: URL) {
+           // Request authorization if not already done
+           PHPhotoLibrary.requestAuthorization { status in
+               guard status == .authorized else {
+                   print("Permission not granted to access photo library")
+                   return
+               }
+               
+               PHPhotoLibrary.shared().performChanges({
+                   // Create a new asset creation request
+                   let creationRequest = PHAssetCreationRequest.forAsset()
+                   creationRequest.addResource(with: .video, fileURL: videoURL, options: nil)
+                   creationRequest.creationDate = Date()
+                   
+               }) { success, error in
+                   if success {
+                       print("Video saved successfully with metadata.")
+                   } else if let error = error {
+                       print("Error saving video: \(error.localizedDescription)")
+                   }
+               }
+           }
+       }
 }
 
 // AVCaptureDataOutputSynchronizerDelegate method to handle synchronized video and depth data.
