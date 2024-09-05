@@ -308,22 +308,41 @@ class CameraController: NSObject, ObservableObject, AVPlayerItemMetadataOutputPu
 
     
     // Flatten depth data into a 2D array for metadata storage.
-    private func flattenDepthArray(depthData: AVDepthData) -> [String] {
-        let depthMap = depthData.depthDataMap
-        let width = CVPixelBufferGetWidth(depthMap)
-        let height = CVPixelBufferGetHeight(depthMap)
-        let rowData = CVPixelBufferGetBaseAddress(depthMap)!.assumingMemoryBound(to: Float32.self)
+    private func flattenDepthArray(depthData: AVDepthData)->[Float]{
+        // Access the depth data map
+        let depthDataMap = depthData.depthDataMap
         
-        // Convert depth data to a 2D array for metadata storage.
-        var flatData: [String] = []
+        // Get the width and height of the depth data
+        let width = CVPixelBufferGetWidth(depthDataMap)
+        let height = CVPixelBufferGetHeight(depthDataMap)
+        
+        // Lock the pixel buffer to ensure data consistency
+        CVPixelBufferLockBaseAddress(depthDataMap, .readOnly)
+        
+        // Access the base address of the depth data map
+        guard let baseAddress = CVPixelBufferGetBaseAddress(depthDataMap) else {
+            CVPixelBufferUnlockBaseAddress(depthDataMap, .readOnly)
+            return []
+        }
+        
+        // Define an array to store depth data values
+        var depthValues: [Float] = []
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(depthDataMap)
+        
+        // Iterate through the depth data map to extract depth values
         for y in 0..<height {
+            let rowPointer = baseAddress.advanced(by: y * bytesPerRow)
+            let depthRow = rowPointer.assumingMemoryBound(to: Float32.self)
+            
             for x in 0..<width {
-                let value = rowData[y * width + x]
-                flatData.append("\(value)")
+                let depthValue = depthRow[x]
+                depthValues.append(depthValue)
             }
         }
         
-        return flatData
+        // Unlock the pixel buffer
+        CVPixelBufferUnlockBaseAddress(depthDataMap, .readOnly)
+        return depthValues
     }
     
     // Finalize and complete the video recording.
