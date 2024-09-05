@@ -212,17 +212,18 @@ class CameraController: NSObject, ObservableObject, AVPlayerItemMetadataOutputPu
                 formatDescriptionOut: &metadataFormatDescription
             )
             
-            let metadataInput = AVAssetWriterInput(mediaType: .metadata, outputSettings: nil, sourceFormatHint: metadataFormatDescription)
-            metadataInput.expectsMediaDataInRealTime = true
-            
-            metadataAdapter = AVAssetWriterInputMetadataAdaptor(assetWriterInput: metadataInput)
+            assetWriterMetadataInput = AVAssetWriterInput(mediaType: .metadata, outputSettings: nil, sourceFormatHint: metadataFormatDescription)
+            assetWriterMetadataInput?.expectsMediaDataInRealTime = true
+            metadataAdapter = AVAssetWriterInputMetadataAdaptor(assetWriterInput: assetWriterMetadataInput!)
             
             // Start writing session for video and metadata.
             if let assetWriter = assetWriter,
-               let assetWriterInput = assetWriterInput
+               let assetWriterInput = assetWriterInput,
+               let assetWriterMetadataInput = assetWriterMetadataInput
+
             {
                 assetWriter.add(assetWriterInput)
-                assetWriter.add(metadataInput)
+                assetWriter.add(assetWriterMetadataInput)
                 assetWriter.startWriting()
                 assetWriter.startSession(atSourceTime: .zero)
             }
